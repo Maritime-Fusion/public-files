@@ -24,9 +24,32 @@ import yaml
 script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
 base_dir = Path(os.path.dirname(os.path.dirname(script_dir)))
 sys.path.append(str(base_dir))
-from simulator.tokamaker.utils import setup_tokamaker_path
 mygs = None  # Global variable to hold the TokaMaker instance
 
+def setup_tokamaker_path():
+    """
+    Set up the TokaMaker Python path from the OFT_ROOTPATH environment variable.
+    
+    Returns:
+        bool: True if setup was successful, False otherwise
+    """
+    # Get the OFT_ROOTPATH environment variable
+    tokamaker_python_path = os.getenv('OFT_ROOTPATH')
+    
+    if tokamaker_python_path is None:
+        print("ERROR: OFT_ROOTPATH environment variable is not set.")
+        print("Please run: source codes/set_tokamaker_env.sh")
+        return False
+    
+    # Add the python directory to the path
+    python_path = os.path.join(tokamaker_python_path, 'build_release', 'python')
+    if not os.path.exists(python_path):
+        python_path = os.path.join(tokamaker_python_path, 'python')
+    
+    sys.path.append(python_path)
+    print(f"Added {python_path} to Python path")
+    
+    return True
 
 def compute_vde(variables, mesh_file_path, output_dir=None, eq_file_path=None, use_saved_eq=False):
     """

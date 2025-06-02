@@ -32,8 +32,6 @@ base_dir = os.path.dirname(script_dir)
 sys.path.append(base_dir)
 
 # Import required modules
-from interfaces.cfspopcon import get_value_at_point, list_available_parameters
-from simulator.tokamaker.utils import setup_tokamaker_path
 
 # Configure matplotlib settings for publication-quality plots
 plt.rcParams['figure.figsize'] = (6, 6)
@@ -41,6 +39,32 @@ plt.rcParams['font.weight'] = 'bold'
 plt.rcParams['axes.labelweight'] = 'bold'
 plt.rcParams['lines.linewidth'] = 2
 plt.rcParams['lines.markeredgewidth'] = 2
+
+
+def setup_tokamaker_path():
+    """
+    Set up the TokaMaker Python path from the OFT_ROOTPATH environment variable.
+    
+    Returns:
+        bool: True if setup was successful, False otherwise
+    """
+    # Get the OFT_ROOTPATH environment variable
+    tokamaker_python_path = os.getenv('OFT_ROOTPATH')
+    
+    if tokamaker_python_path is None:
+        print("ERROR: OFT_ROOTPATH environment variable is not set.")
+        print("Please run: source codes/set_tokamaker_env.sh")
+        return False
+    
+    # Add the python directory to the path
+    python_path = os.path.join(tokamaker_python_path, 'build_release', 'python')
+    if not os.path.exists(python_path):
+        python_path = os.path.join(tokamaker_python_path, 'python')
+    
+    sys.path.append(python_path)
+    print(f"Added {python_path} to Python path")
+    
+    return True
 
 def load_variables():
     """
@@ -52,7 +76,7 @@ def load_variables():
     """
     # Determine the project base directory and variables file path
     base_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    variables_file = base_dir / "design/variables.yaml"
+    variables_file = "variables.yaml"
     
     # Load and parse the YAML file
     with open(variables_file, 'r') as f:
@@ -138,18 +162,17 @@ def run_tokamaker(create_mesh=True, solve=True, plot=True, inverse_eq=False, vde
         
         # Step 5: Get physics parameters from CFSPOPCON
         print(f"Getting plasma physics parameters from CFSPOPCON at T={temp_point} keV, n={density_point} 10^19 m^-3...")
-        beta_total = get_value_at_point(temp_point, density_point, 'beta_total')
-        average_total_pressure = get_value_at_point(temp_point, density_point, 'average_total_pressure')
+        beta_total = 0.0054
         
         # Add derived values to variables dictionary for use by simulation modules
         variables['beta_total'] = {'value': beta_total, 'units': 'UL'}
-        variables['average_total_pressure'] = {'value': average_total_pressure, 'units': 'Pa'}
         
         # Path to the standard mesh file
-        mesh_file_path = str(base_dir / "design/YINSEN_mesh.h5")
+        mesh_file_path = str("SPARC_mesh.h5")
+        eq_file_path = str("equilibrium.geqdsk")  # Fixed typo: gedsk → geqdsk
         
         # Print common configuration parameters
-        print_plasma_parameters(variables, beta_total, average_total_pressure)
+        print_plasma_parameters(variables, beta_total)
         
         # Step 6: Run the requested simulation type
         if vde_sim:
@@ -158,31 +181,18 @@ def run_tokamaker(create_mesh=True, solve=True, plot=True, inverse_eq=False, vde
             print("STARTING VERTICAL DISPLACEMENT EVENT (VDE) SIMULATION")
             print("="*80)
             
-            from simulator.tokamaker.compute_vde import compute_vde
+            from compute_vde import compute_vde
             
             # Create VDE-specific output directory
             vde_output_dir = os.path.join(output_dir, "vde")
             os.makedirs(vde_output_dir, exist_ok=True)
             
             # Check for existing equilibrium file
-            equil_output_dir = os.path.join(output_dir, "equilibrium")
-            geqdsk_file = os.path.join(equil_output_dir, "equilibrium.geqdsk")  # Fixed typo: gedsk → geqdsk
-            
-            # If equilibrium directory or file doesn't exist, warn user
-            if not os.path.exists(equil_output_dir) or not os.path.exists(geqdsk_file):
-                print("WARNING: Equilibrium file not found. Run inverse equilibrium calculation first.")
-                print(f"Expected file: {geqdsk_file}")
-                print("Continuing with new equilibrium calculation...")
-                use_saved_eq = False
-                eq_file_path = None
-            else:
-                print(f"Using existing equilibrium from: {geqdsk_file}")
-                use_saved_eq = True
-                eq_file_path = geqdsk_file
+            geqdsk_file = "equilibrium.geqdsk"  # Fixed typo: gedsk → geqdsk
                 
             # Run VDE simulation
             mygs, eig_vals, eig_vecs, z0, eig_comp, results = compute_vde(
-                variables, mesh_file_path, vde_output_dir, eq_file_path, use_saved_eq)
+                variables, mesh_file_path, vde_output_dir, eq_file_path, True)
             
             print("\n" + "="*80)
             print("VDE SIMULATION COMPLETED")
@@ -196,7 +206,7 @@ def run_tokamaker(create_mesh=True, solve=True, plot=True, inverse_eq=False, vde
             print("STARTING INVERSE EQUILIBRIUM CALCULATION")
             print("="*80)
             
-            from simulator.tokamaker.compute_inverse_equilib import compute_inverse_equilibrium
+            from compute_inverse_equilib import compute_inverse_equilibrium
             
             # Create equilibrium output directory
             equilibrium_output_dir = os.path.join(output_dir, "equilibrium")
@@ -212,29 +222,29 @@ def run_tokamaker(create_mesh=True, solve=True, plot=True, inverse_eq=False, vde
             
             return mygs, coil_currents
             
-        elif create_mesh:
-            # Mesh creation
-            print("\n" + "="*80)
-            print("STARTING MESH GENERATION")
-            print("="*80)
+        # elif create_mesh:
+        #     # Mesh creation
+        #     print("\n" + "="*80)
+        #     print("STARTING MESH GENERATION")
+        #     print("="*80)
             
-            from simulator.tokamaker.create_mesh import create_mesh
+        #     from create_mesh import create_mesh
             
-            # Create mesh output directory
-            mesh_output_dir = os.path.join(output_dir, "mesh")
-            os.makedirs(mesh_output_dir, exist_ok=True)
+        #     # Create mesh output directory
+        #     mesh_output_dir = os.path.join(output_dir, "mesh")
+        #     os.makedirs(mesh_output_dir, exist_ok=True)
             
-            # Create computational mesh
-            print(f"Creating computational mesh based on reactor geometry...")
-            mesh_pts, mesh_lc, mesh_reg, coil_dict, cond_dict = create_mesh(
-                variables, mesh_output_dir)
+        #     # Create computational mesh
+        #     print(f"Creating computational mesh based on reactor geometry...")
+        #     mesh_pts, mesh_lc, mesh_reg, coil_dict, cond_dict = create_mesh(
+        #         variables, mesh_output_dir)
             
-            print("\n" + "="*80)
-            print("MESH GENERATION COMPLETED")
-            print("="*80)
-            print(f"Mesh saved to design directory and {mesh_output_dir}")
+        #     print("\n" + "="*80)
+        #     print("MESH GENERATION COMPLETED")
+        #     print("="*80)
+        #     print(f"Mesh saved to design directory and {mesh_output_dir}")
             
-            return mesh_pts, mesh_lc, mesh_reg, coil_dict, cond_dict
+        #     return mesh_pts, mesh_lc, mesh_reg, coil_dict, cond_dict
         
     except Exception as e:
         print(f"ERROR: Failed to run TokaMaker simulation: {e}")
