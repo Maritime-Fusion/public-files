@@ -1,0 +1,37 @@
+---
+# Tokamak main parameters
+reactor_name: SPARC
+
+reactor_type: tokamak
+
+major_radius: 
+  value: 1.85
+  units: m
+  
+magnetic_field_on_axis:
+  value: 12.2
+  units: T
+  
+inverse_aspect_ratio:
+  value: 0.308
+  units: UL
+  
+plasma_current:
+  value: 8.7e+06
+  units: A
+  
+elongation:
+  value: 1.97
+  units: UL
+
+triangularity:
+  value: 0.54
+  units: UL
+
+density_point:
+  value: 31
+  units: 10^19m^-3
+
+temp_point:
+  value: 7.3
+  units: keV
